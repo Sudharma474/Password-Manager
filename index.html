@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🔒 Secure Password Manager (Encrypted & Hidden)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f8ff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 450px;
+      text-align: center;
+    }
+    .input-wrapper {
+      position: relative;
+      width: 90%;
+      margin: 10px auto;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    input[type="password"] {
+      -webkit-text-security: disc;
+      text-security: disc;
+    }
+    .toggle-password {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      font-size: 16px;
+      color: #555;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .password-list {
+      text-align: left;
+      margin-top: 20px;
+    }
+    .password-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #f9f9f9;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+    .hidden-password {
+      font-family: monospace;
+      letter-spacing: 3px;
+    }
+    .delete-btn {
+      background-color: #e74c3c;
+      border: none;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .delete-btn:hover {
+      background-color: #c0392b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🔐 Secure Password Manager</h2>
+    <input type="text" id="website" placeholder="Website (e.g., facebook.com)" oninput="autoFillPassword()">
+    <div class="input-wrapper">
+      <input type="password" id="password" placeholder="Password">
+      <span class="toggle-password" onclick="togglePasswordVisibility()">👁️</span>
+    </div>
+    <button onclick="addPassword()">Add/Update Password</button>
+
+    <h3>🔑 Saved Passwords</h3>
+    <div class="password-list" id="password-list"></div>
+  </div>
+
+  <script>
+    window.onload = loadPasswords;
+
+    function encrypt(text) {
+      return btoa(text);
+    }
+
+    function decrypt(text) {
+      return atob(text);
+    }
+
+    async function hashPassword(password) {
+      const msgBuffer = new TextEncoder().encode(password);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function togglePasswordVisibility() {
+      const passwordField = document.getElementById("password");
+      const toggleIcon = document.querySelector(".toggle-password");
+      if (passwordField.type === "password") {
+        passwordField.type = "text";
+        toggleIcon.textContent = "🙈";
+      } else {
+        passwordField.type = "password";
+        toggleIcon.textContent = "👁️";
+      }
+    }
+
+    async function addPassword() {
+      const website = document.getElementById("website").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!website || !password) {
+        alert("⚠️ Please fill in both fields.");
+        return;
+      }
+
+      const encryptedPassword = encrypt(password);
+      const hashedPassword = await hashPassword(password);
+
+      const passwords = JSON.parse(localStorage.getItem("passwords") || "{}");
+      passwords[website] = { encrypted: encryptedPassword, hash: hashedPassword };
+      localStorage.setItem("passwords", JSON.stringify(passwords));
+
+      document.getElementById("website").value = "";
+      document.getElementById("password").value = "";
+      loadPasswords();
+    }
+
+    function loadPasswords() {
+      const passwordList = document.getElementById("password-list");
+      passwordList.innerHTML = "";
+
+      const passwords = JSON.parse(localStorage.getItem("passwords") || "{}");
+      Object.keys(passwords).forEach(site => {
+        const hiddenPassword = "••••••••";
+        const div = document.createElement("div");
+        div.className = "password-item";
+        div.innerHTML = `
+          <span>🌐 ${site} - <span class="hidden-password">${hiddenPassword}</span></span>
+          <button class="delete-btn" onclick="deletePassword('${site}')">Delete</button>
+        `;
+        passwordList.appendChild(div);
+      });
+    }
+
+    function deletePassword(site) {
+      const passwords = JSON.parse(localStorage.getItem("passwords") || "{}");
+      delete passwords[site];
+      localStorage.setItem("passwords", JSON.stringify(passwords));
+      loadPasswords();
+    }
+
+    async function autoFillPassword() {
+      const website = document.getElementById("website").value.trim();
+      const passwords = JSON.parse(localStorage.getItem("passwords") || "{}");
+
+      if (passwords[website]) {
+        const decryptedPassword = decrypt(passwords[website].encrypted);
+        const calculatedHash = await hashPassword(decryptedPassword);
+
+        if (calculatedHash === passwords[website].hash) {
+          document.getElementById("password").value = decryptedPassword;
+        } else {
+          alert("⚠️ Password integrity check failed!");
+          document.getElementById("password").value = "";
+        }
+      } else {
+        document.getElementById("password").value = "";
+      }
+    }
+  </script>
+</body>
+</html>
